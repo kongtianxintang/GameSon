@@ -38,6 +38,7 @@ class MainScene: SKScene,SKPhysicsContactDelegate{
             addChild(node)
         }
         layoutSubs()
+        
     }
     
     private func layoutSubs(){
@@ -49,6 +50,7 @@ class MainScene: SKScene,SKPhysicsContactDelegate{
         body.categoryBitMask = oneselfFlag
         body.contactTestBitMask = enemyFlag
         oneself!.physicsBody = body
+        oneself!.name = "hero"
         
         bgNode!.position = CGPoint.zero
         bgNode!.anchorPoint = CGPoint.zero
@@ -57,12 +59,29 @@ class MainScene: SKScene,SKPhysicsContactDelegate{
         let pword = SKPhysicsBody.init(edgeLoopFrom: view!.bounds)
         self.physicsBody = pword
         self.physicsWorld.contactDelegate = self
+        
+        let pan = UIPanGestureRecognizer.init(target: self, action: #selector(moveHero(_:)))
+        self.view!.addGestureRecognizer(pan)
+        
+        gameStart()
+    }
+    
+    //拖动飞机
+    private lazy var isHero = false
+    @objc func moveHero(_ pan:UIPanGestureRecognizer){
+        if isHero {
+            if let node = oneself {
+                let point = pan.location(in: self.view)
+                let position = CGPoint.init(x: point.x, y: self.size.height - point.y)
+                node.position = position
+            }
+        }
     }
     
     //创建敌方飞机
     private var enemyTimer: Timer?
     private func invade(){
-        enemyTimer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: #selector(createEnemy), userInfo: nil, repeats: true)
+        enemyTimer = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(createEnemy), userInfo: nil, repeats: true)
     }
     @objc func createEnemy(){
         guard gameStatus == .play else {
@@ -135,15 +154,11 @@ class MainScene: SKScene,SKPhysicsContactDelegate{
                 node.removeFromParent()
             }
         }
+        //todo:游戏结束
+        let over = GameOver.init(size: view!.bounds.size)
+        view?.presentScene(over)
         
-        addChild(label)
-        label.position = CGPoint.init(x: view!.bounds.width / 2, y: view!.bounds.height / 2)
-        
-//        let scene = GameOver()
-//        let point = CGPoint.init(x: view!.bounds.width / 2, y: view!.bounds.height / 2)
-//        scene.frame = CGRect.init(origin: point, size: CGSize.init(width: 128, height: 128))
-//        view!.presentScene(scene)
-        
+        clearTimer()
     }
     private func gameStart(){
         let date = Date()
@@ -159,7 +174,16 @@ class MainScene: SKScene,SKPhysicsContactDelegate{
     
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        createEnemy()
+        //todo:去拖动飞机-自己的飞机
+        isHero = false
+        if let touch = touches.first {
+            let point = touch.location(in: self)
+            if let node = self.nodes(at: point).first {
+                if node.name == "hero"{
+                    isHero = true
+                }
+            }
+        }
     }
     
     //SKPhysicsContactDelegate  碰撞相关
@@ -189,12 +213,32 @@ class MainScene: SKScene,SKPhysicsContactDelegate{
         nodeA?.removeFromParent()
         nodeB?.removeAllActions()
         nodeB?.removeFromParent()
+        
+        var textures = Array<SKTexture>()
+        for i in 1 ... 19 {
+            let texture = atlas.textureNamed("explosion\(i)")
+            textures.append(texture)
+        }
+        let node = SKSpriteNode.init(texture: textures[0])
+        node.position = nodeA!.position
+        addChild(node)
+        let anim = SKAction.animate(with: textures, timePerFrame: 0.01)
+        let remove = SKAction.removeFromParent()
+        let actions = SKAction.sequence([anim,remove,SKAction.run {
+            node.removeAllActions()
+            }])
+        node.run(actions)
     }
 
-    deinit {
+    private func clearTimer(){
         bulletTimer?.invalidate()
         bulletTimer = nil
         enemyTimer?.invalidate()
         enemyTimer = nil
+    }
+    
+    deinit {
+        
+        print("销毁不？")
     }
 }
